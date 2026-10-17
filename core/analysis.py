@@ -95,7 +95,7 @@ def run_analysis(n_events: int = 5000, campaigns_per_type: int = 8, seed: int = 
     return AnalysisResult(
         events=df, campaigns=_campaigns(df, meta, p), graph=p.graph, thresholds=p.scorer.thresholds,
         n_events=len(df), seed=seed, worst_case=worst_case, elapsed_s=time.perf_counter() - t0,
-        model_trained=p.scorer.model.trained, guardian_alerts=len(p.guardians.alerts),
+        model_trained=p.scorer.model.trained, guardian_alerts=p.guardians.total,
         examples=[v[1] for v in sorted(best.values(), key=lambda t: -t[0])],
     )
 

@@ -9,6 +9,7 @@ import streamlit as st
 
 from core import analysis as an
 from core.scoring import Thresholds
+from core.textutil import compact_usd, md_dollars, md_escape
 from ui.graph_view import render_neighborhood
 
 GROUP_COLORS = alt.Scale(domain=["Normal", "Scam"], range=["#8da3b8", "#e5484d"])
@@ -57,7 +58,7 @@ m = st.columns(5)
 m[0].metric("Scam campaigns caught", f"{s['campaigns_caught']}/{s['campaigns']}", an.pct(s["catch_rate"]), delta_color="off")
 m[1].metric("Scam transfers flagged", an.pct(s["event_recall"]), f"{s['tp']} of {s['scam_events']}", delta_color="off")
 m[2].metric("False positives", f"{s['fp']:,}", f"{an.pct(s['fpr'], 2)} of normal", delta_color="off")
-m[3].metric("Funds stopped", f"${s['stopped']:,.0f}", f"${s['leaked']:,.0f} got through", delta_color="off")
+m[3].metric("Funds stopped", compact_usd(s["stopped"]), f"{compact_usd(s['leaked'])} got through", delta_color="off")
 m[4].metric("Latency p95", f"{s['lat_p95']:.2f} ms", f"avg {s['lat_avg']:.2f} ms", delta_color="off")
 
 tabs = st.tabs(["Findings", "Detection", "Threshold tuning", "Signals & reasons", "Network & customers", "Data"])
@@ -73,9 +74,9 @@ with tabs[0]:
         for ex in res.examples:
             with st.expander(f"{ex['scenario'].replace('_', ' ').title()} · risk {ex['risk']} · {ex['tier']}"):
                 st.caption("Message to customer")
-                st.info(ex["user_message"].replace("$", "\\$"))
+                st.info(md_escape(ex["user_message"]))
                 st.caption("Analyst brief")
-                st.markdown(ex["analyst_brief"].replace("$", "\\$"))
+                st.markdown(md_dollars(ex["analyst_brief"]))
 
 # ---- detection ---------------------------------------------------------------------
 with tabs[1]:

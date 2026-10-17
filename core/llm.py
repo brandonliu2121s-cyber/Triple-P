@@ -14,10 +14,12 @@ import time
 import requests
 
 from .schemas import Event, Intervention, ScoreResult, Tier
+from .textutil import isolate, md_escape
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 MODEL = os.getenv("GUARDIANZ_MODEL", "llama3.2:3b")
 TIMEOUT_S = 3.0
+CACHE_MAX = 256
 
 USER_PROMPT = """You are a calm, kind bank assistant. A customer's transfer was paused because it looks like a scam.
 Write 2-3 short, plain-language sentences (no jargon, no blame) asking them to take a moment, \
@@ -40,6 +42,7 @@ def _ask_ollama(prompt: str) -> str:
 
 def _template_user(name: str, ev: Event, res: ScoreResult) -> str:
     top = res.reasons[0][0].lower() if res.reasons else "this transfer looks unusual"
+    name = isolate(name)        # the UI escapes markdown at render time; this keeps an RTL name in place
     if res.tier is Tier.NUDGE:
         return (f"Hi {name}, just checking: you're about to send ${ev.amount:,.0f}. "
                 f"We noticed that {top}. If anyone is rushing you, it's safe to pause.")
@@ -49,7 +52,8 @@ def _template_user(name: str, ev: Event, res: ScoreResult) -> str:
 
 
 def _template_brief(ev: Event, res: ScoreResult) -> str:
-    bullets = [f"- **Transaction:** ${ev.amount:,.0f} {ev.user_id} -> {ev.dest_id}",
+    # The brief is markdown, so ids are escaped here; the UI escapes only `$` when it renders it.
+    bullets = [f"- **Transaction:** ${ev.amount:,.0f} {md_escape(ev.user_id)} -> {md_escape(ev.dest_id)}",
                f"- **Risk:** {res.risk}/100 ({res.tier.value.upper()}); network {res.network_score}, behaviour {res.behavior_score}"]
     bullets += [f"- **Evidence:** {r}" for r, _ in res.reasons[:3]]
     bullets.append("- **Recommended:** call the customer on a verified number before releasing funds"
@@ -60,7 +64,7 @@ def _template_brief(ev: Event, res: ScoreResult) -> str:
 class InterventionGenerator:
     def __init__(self, use_llm: bool | None = None) -> None:
         self.use_llm = use_llm if use_llm is not None else os.getenv("GUARDIANZ_LLM") == "1"
-        self._cache: dict[tuple, str] = {}
+        self._cache: dict[tuple, str] = {}      # bounded in _cached
 
     def generate(self, ev: Event, res: ScoreResult, customer_name: str) -> Intervention:
         t0 = time.perf_counter()
@@ -88,5 +92,7 @@ class InterventionGenerator:
 
     def _cached(self, key: tuple, prompt: str) -> str:
         if key not in self._cache:
+            if len(self._cache) >= CACHE_MAX:
+                self._cache.clear()
             self._cache[key] = _ask_ollama(prompt)
         return self._cache[key]

@@ -23,6 +23,10 @@ CSS = """
 .block-container { padding-top: 2rem; max-width: 1400px; }
 h1 { letter-spacing: -0.02em; }
 
+/* Long ids, emails and URLs have no spaces; let them wrap instead of pushing the layout wide */
+[data-testid="stMarkdownContainer"], [data-testid="stAlert"] { overflow-wrap: anywhere; }
+[data-testid="stMarkdownContainer"] code { white-space: pre-wrap; }
+
 /* Metric cards: soft border instead of a heavy fill */
 [data-testid="stMetric"] {
   background: var(--card-bg);

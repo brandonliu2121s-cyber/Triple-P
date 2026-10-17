@@ -5,6 +5,7 @@ import streamlit as st
 
 from core.pipeline import Pipeline
 from core.scams import SCENARIOS
+from core.textutil import plural
 from ui import components as ui
 from ui.graph_view import render_neighborhood
 
@@ -70,7 +71,8 @@ def live() -> None:
     with case_tab:
         if p.cases:
             ui.case_detail(p, p.cases[-1])
-            st.caption(f"{len(p.cases)} cases in queue")
+            queued = p.stats.by_tier["hold"] + p.stats.by_tier["escalate"]
+            st.caption(f"{plural(queued, 'case')} in queue")
         else:
             st.write("No held transactions yet.")
     with graph_tab:

@@ -6,13 +6,16 @@ transfer is held. Swap `_deliver` for a real channel (Telegram bot, email) if ti
 from __future__ import annotations
 
 from .schemas import Event, GuardianAlert, ScoreResult, Tier
+from .textutil import isolate
 
 _GUARDIANS = ["Daughter", "Son", "Grandson", "Niece", "Neighbour"]
+KEEP_ALERTS = 200
 
 
 class GuardianService:
     def __init__(self) -> None:
-        self.alerts: list[GuardianAlert] = []
+        self.alerts: list[GuardianAlert] = []     # most recent KEEP_ALERTS only
+        self.total = 0                            # alerts sent over the whole run
 
     @staticmethod
     def guardian_for(user_id: str) -> str:
@@ -26,11 +29,13 @@ class GuardianService:
         alert = GuardianAlert(
             event_id=ev.id, ts=ev.ts, user_id=ev.user_id, guardian_name=guardian,
             amount=ev.amount, tier=res.tier,
-            message=(f"Heads up: a ${ev.amount:,.0f} transfer from {customer_name}'s account was paused "
+            message=(f"Heads up: a ${ev.amount:,.0f} transfer from {isolate(customer_name)}'s account was paused "
                      f"for safety ({top.lower()}). Please check in with them before it goes through."),
         )
         self._deliver(alert)
         self.alerts.append(alert)
+        self.total += 1
+        del self.alerts[:-KEEP_ALERTS]
         return alert
 
     def _deliver(self, alert: GuardianAlert) -> None:

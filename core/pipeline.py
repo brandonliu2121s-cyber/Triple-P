@@ -15,6 +15,8 @@ from .scoring import Scorer
 from .simulator import EventStream
 
 BLOCKING = (Tier.HOLD, Tier.ESCALATE)
+KEEP_CASES = 500          # a stream left running for hours must not grow without bound
+KEEP_LATENCIES = 1000     # only the last 500 are ever averaged
 
 
 @dataclass
@@ -86,10 +88,12 @@ class Pipeline:
         s.total += 1
         s.by_tier[res.tier.value] += 1
         s.latencies_ms.append(res.latency_ms)
+        del s.latencies_ms[:-KEEP_LATENCIES]
         blocked = res.tier in BLOCKING
         if blocked:
             s.held_amount += ev.amount
             self.cases.append(p)
+            del self.cases[:-KEEP_CASES]        # counters in Stats keep the full totals
         if ev.scenario:
             s.scam_events += 1
             s.scam_caught += blocked
