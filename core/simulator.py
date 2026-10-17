@@ -41,10 +41,12 @@ def make_users(n: int, seed: int = 11) -> dict[str, UserProfile]:
 
 
 class EventStream:
-    def __init__(self, graph: MuleGraph, n_users: int = 80, seed: int = 3) -> None:
+    def __init__(self, graph: MuleGraph, n_users: int = 80, seed: int = 3,
+                 users: dict[str, UserProfile] | None = None, dests: list[str] | None = None) -> None:
         self.rng = random.Random(seed)
         self.graph = graph
-        self.users = make_users(n_users)
+        self.users = users or make_users(n_users)
+        self.dests = dests or []              # extra payee ids mixed into normal traffic (worst-case data)
         self._next_id = 1
         self._clock = 1_700_000_000.0
         self._queue: deque[Event] = deque()   # scripted (scam) events take priority
@@ -62,6 +64,11 @@ class EventStream:
     def inject(self, events: list[Event]) -> None:
         self._queue.extend(events)
 
+    @property
+    def pending(self) -> int:
+        """Scripted events still queued."""
+        return len(self._queue)
+
     def pick_senior(self) -> UserProfile:
         return self.rng.choice([u for u in self.users.values() if u.is_senior])
 
@@ -74,8 +81,9 @@ class EventStream:
         u = self.rng.choice(list(self.users.values()))
         amount = max(1.0, self.rng.lognormvariate(0, 0.35) * u.typical_amount)
         new_payee = self.rng.random() < 0.03
+        dest = self.rng.choice(self.dests) if self.dests and self.rng.random() < 0.3 else self.graph.random_normal()
         return Event(
-            id=0, ts=0.0, user_id=u.user_id, dest_id=self.graph.random_normal(),
+            id=0, ts=0.0, user_id=u.user_id, dest_id=dest,
             amount=round(amount, 2), balance_before=u.balance,
             new_beneficiary=new_payee,
             device_change=self.rng.random() < 0.02,
