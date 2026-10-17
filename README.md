@@ -64,6 +64,17 @@ before evaluating: behaviour 0.20 / network 0.35 / context 0.45 (`core/scoring.p
 - **Romance: only NUDGE (known gap).** Its opening transfer has a new payee but no device change and a modest amount.
   Say so in the pitch rather than tuning around it.
 
+### Repeated-payee signal
+
+`PayeeHistory` (`core/features.py`) counts every transfer attempt per customer and payee (held ones too). If a customer
+sends to a payee again within 30 minutes of first paying it, context score +25, and +15 more when the amount is at least
+1.5x the previous one. Values were fixed before measuring. Measured effect:
+
+- Normal traffic (3,000 events): still 0 false holds; nudges 66 -> 77 (2.2% -> 2.6%); ~1% of normal events carry the reason.
+- Later transfers in scam scripts rise from ~40 to ~52 risk; tech-support's second transfer now reaches HOLD (80).
+- **Romance still tops out at NUDGE** (risk 51-52, hold threshold 60). Its first transfer is the ambiguous one, and
+  the signal only helps later transfers. Left as a documented gap rather than tuned.
+
 ## Who owns what
 
 | Person | Files | First TODOs |

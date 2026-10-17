@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from .features import BaselineStore, featurize
+from .features import BaselineStore, PayeeHistory, featurize
 from .graph import MuleGraph
 from .models import REASON_TEXT, BehaviorModel
 from .schemas import Event, ScoreResult, Tier
@@ -36,6 +36,7 @@ class Thresholds:
 # The interaction bonus rewards several independent red flags at once.
 W_BEHAVIOR, W_NETWORK, W_CONTEXT = 0.20, 0.35, 0.45
 INTERACTION_BONUS = 0.35
+REPEAT_POINTS, ESCALATION_POINTS = 25.0, 15.0   # repeated-payee signal, set once (see README)
 
 
 class Scorer:
@@ -45,14 +46,17 @@ class Scorer:
         self.model = model or BehaviorModel()
         self.thresholds = thresholds or Thresholds()
         self.baselines = BaselineStore()
+        self.payees = PayeeHistory()
 
     @staticmethod
-    def _context_score(ev: Event) -> float:
+    def _context_score(ev: Event, repeats: int = 0, escalating: bool = False) -> float:
         s = 0.0
         s += 40.0 if ev.device_change else 0.0
         s += 35.0 if ev.new_beneficiary else 0.0
         s += 25.0 if (ev.user_is_senior and ev.balance_pct > 0.5) else 0.0
-        return s
+        s += REPEAT_POINTS if repeats >= 1 else 0.0       # repeated sends to a still-new payee
+        s += ESCALATION_POINTS if (repeats >= 1 and escalating) else 0.0
+        return min(s, 100.0)
 
     def score(self, ev: Event) -> ScoreResult:
         t0 = time.perf_counter()
@@ -60,18 +64,24 @@ class Scorer:
         x = featurize(ev, base)
         behavior, impacts = self.model.predict(x)
         network, _signals = self.graph.score(ev.dest_id)
-        context = self._context_score(ev)
+        repeats, escalating = self.payees.signal(ev)
+        context = self._context_score(ev, repeats, escalating)
 
         fused = W_BEHAVIOR * behavior + W_NETWORK * network + W_CONTEXT * context
         fused += INTERACTION_BONUS * max(0.0, max(behavior, network, context) - fused)
         risk = min(fused, 100.0)
 
         reasons = [(REASON_TEXT[name], round(imp, 1)) for name, imp in impacts if imp >= 5.0]
+        if repeats >= 1:
+            reasons.append((REASON_TEXT["repeat_payee"], REPEAT_POINTS))
+            if escalating:
+                reasons.append((REASON_TEXT["escalating"], ESCALATION_POINTS))
         if network >= 50.0:
             reasons.append((REASON_TEXT["network"], round(network * 0.4, 1)))
         reasons.sort(key=lambda t: t[1], reverse=True)
 
         tier = self.thresholds.tier_for(risk)
+        self.payees.record(ev)                    # attempts count whatever the tier
         if tier in (Tier.ALLOW, Tier.NUDGE):      # only trusted events shape the baseline
             self.baselines.update(ev)
 

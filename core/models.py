@@ -94,5 +94,7 @@ REASON_TEXT = {
     "amount_log": "Unusually large transfer amount",
     "drains_account": "Transfer empties the account",
     "high_risk_type": "Transfer type commonly used in fraud (transfer / cash-out)",
+    "repeat_payee": "Repeated transfers to a payee first paid minutes ago",
+    "escalating": "Each transfer to this payee is larger than the last",
     "network": "Receiving account looks like part of a money-mule ring",
 }

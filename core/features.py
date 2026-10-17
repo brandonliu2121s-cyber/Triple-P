@@ -82,3 +82,31 @@ def featurize(ev: Event, base: UserBaseline) -> list[float]:
         float(ev.balance_pct >= 0.99),
         float(ev.type in HIGH_RISK_TYPES),
     ]
+
+
+# --- repeated-payee signal -------------------------------------------------------------------------
+REPEAT_WINDOW_S = 1800.0      # a scam call coaches a victim through several transfers in under an hour
+ESCALATION_RATIO = 1.5        # this transfer is >= 1.5x the previous one to the same payee
+
+
+class PayeeHistory:
+    """Every transfer ATTEMPT per (customer, payee), regardless of tier.
+
+    Separate from UserBaseline on purpose: the baseline only learns from trusted events, but a held first
+    transfer must still count when the victim retries to the same payee.
+    """
+
+    def __init__(self) -> None:
+        self._h: dict[tuple[str, str], list[tuple[float, float]]] = defaultdict(list)
+
+    def signal(self, ev: Event) -> tuple[int, bool]:
+        """(prior attempts to this payee, amount escalating?) -- only while the payee is still "new":
+        i.e. the first attempt to it was less than REPEAT_WINDOW_S ago."""
+        hist = self._h.get((ev.user_id, ev.dest_id), [])
+        if not hist or ev.ts - hist[0][0] > REPEAT_WINDOW_S:
+            return 0, False
+        escalating = ev.amount >= ESCALATION_RATIO * hist[-1][1]
+        return len(hist), escalating
+
+    def record(self, ev: Event) -> None:
+        self._h[(ev.user_id, ev.dest_id)].append((ev.ts, ev.amount))
