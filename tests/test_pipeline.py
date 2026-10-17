@@ -44,3 +44,11 @@ def test_latency_budget():
     p = Pipeline(warmup=200, use_llm=False)
     drain(p, 200)
     assert p.stats.p95_latency_ms < 50
+
+
+def test_allowed_events_carry_no_reasons_and_graph_view_is_capped():
+    p = Pipeline(warmup=400, use_llm=False)
+    out = drain(p, 200)
+    assert all(not x.result.reasons for x in out if x.result.tier is Tier.ALLOW)
+    for mule in sorted(p.graph.mule_ids)[:6]:
+        assert len(p.graph.neighborhood(mule, max_nodes=8)) <= 8

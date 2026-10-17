@@ -81,6 +81,8 @@ class Scorer:
         reasons.sort(key=lambda t: t[1], reverse=True)
 
         tier = self.thresholds.tier_for(risk)
+        if tier is Tier.ALLOW:
+            reasons = []                          # reasons explain a flag; an allowed event has none
         self.payees.record(ev)                    # attempts count whatever the tier
         if tier in (Tier.ALLOW, Tier.NUDGE):      # only trusted events shape the baseline
             self.baselines.update(ev)

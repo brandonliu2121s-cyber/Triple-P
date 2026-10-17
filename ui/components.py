@@ -26,7 +26,7 @@ def feed_table(history: list[Processed], n: int = 15) -> None:
         "": TIER_ICON[x.result.tier], "id": x.event.id, "customer": x.event.user_id,
         "to": x.event.dest_id, "amount": round(x.event.amount, 2), "risk": x.result.risk,
         "tier": x.result.tier.value, "ms": x.result.latency_ms,
-        "top reason": x.result.reasons[0][0] if x.result.reasons else "",
+        "top reason": x.result.reasons[0][0] if x.result.reasons else "—",
         "scenario": x.event.scenario or "",
     } for x in reversed(history[-n:])]
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")

@@ -61,8 +61,16 @@ class MuleGraph:
     def random_mule(self) -> str:
         return self.rng.choice(sorted(self.mule_ids))
 
-    def neighborhood(self, node_id: str, radius: int = 1) -> nx.Graph:
-        """Ego subgraph for the UI."""
+    def neighborhood(self, node_id: str, radius: int = 1, max_nodes: int = 12) -> nx.Graph:
+        """Ego subgraph for the UI, capped at `max_nodes` (mules and heaviest links are kept first)."""
         if node_id not in self.g:
             return nx.Graph()
-        return nx.ego_graph(self.g.to_undirected(as_view=True), node_id, radius=radius)
+        und = self.g.to_undirected(as_view=True)
+        ego = nx.ego_graph(und, node_id, radius=radius)
+        if ego.number_of_nodes() <= max_nodes:
+            return ego
+        others = sorted((n for n in ego if n != node_id),
+                        key=lambda n: (n in self.mule_ids, self.g.get_edge_data(node_id, n, {}).get("weight", 0)
+                                       + self.g.get_edge_data(n, node_id, {}).get("weight", 0)),
+                        reverse=True)
+        return ego.subgraph([node_id] + others[: max_nodes - 1]).copy()
