@@ -15,7 +15,7 @@ Simulated stream ─► Scoring (behaviour + mule-graph + context) ─► Tier: 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run app.py        # dashboard
+streamlit run app.py        # dashboard: "Live monitor" and "Analysis" pages
 pytest                      # sanity tests
 ```
 
@@ -38,6 +38,13 @@ Writes `models/behavior_xgb.json` and `models/behavior_metrics.json` (time-based
 `BehaviorModel` loads it automatically; without it the pipeline uses rule-based scoring. The model uses the signals
 PaySim and a live event share (`amount_log`, `balance_pct`, `drains_account`, `high_risk_type`); reasons come from
 exact TreeSHAP. After training, re-run `pytest` and the dashboard and re-tune tier thresholds if scams no longer reach hold.
+
+## Analysis page
+
+The **Analysis** page (`views/analysis.py`, engine in `core/analysis.py`) is not live. Pick a size, press
+**Run analysis**, and it simulates a seeded batch with scripted scam campaigns mixed in, then shows detection
+rates, the risk-score distribution, a threshold tuner, signal and reason breakdowns, the mule network and written
+findings. Same seed, same result. Set `GUARDIANZ_DEV=1` to add the dev data switch and worst-case fixtures.
 
 ## Who owns what
 

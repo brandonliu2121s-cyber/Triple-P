@@ -46,9 +46,13 @@ class Stats:
 
 
 class Pipeline:
-    def __init__(self, warmup: int = 600, use_llm: bool | None = None) -> None:
+    def __init__(self, warmup: int = 600, use_llm: bool | None = None, worst_case: bool = False) -> None:
         self.graph = MuleGraph()
-        self.stream = EventStream(self.graph)
+        if worst_case:                          # dev only: awkward names, ids and amounts
+            from .fixtures import WORST_DESTS, worst_case_users
+            self.stream = EventStream(self.graph, users=worst_case_users(), dests=WORST_DESTS)
+        else:
+            self.stream = EventStream(self.graph)
         self.scorer = Scorer(self.graph)
         self.llm = InterventionGenerator(use_llm)
         self.guardians = GuardianService()
