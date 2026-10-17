@@ -20,8 +20,19 @@ from .features import HIGH_RISK_TYPES, MODEL_FEATURES
 USECOLS = ["step", "type", "amount", "nameOrig", "oldbalanceOrg", "nameDest", "isFraud"]
 
 
-def load(path: str, limit: int | None = None) -> pd.DataFrame:
-    return pd.read_csv(path, usecols=USECOLS, nrows=limit)
+def load(path: str, limit: int | None = None, neg_frac: float = 1.0, seed: int = 42) -> pd.DataFrame:
+    """Read PaySim in chunks, keeping every fraud row and a `neg_frac` random share of non-fraud rows.
+
+    Sampling non-fraud uniformly keeps the time split valid and memory small (neg_frac=0.05 -> ~320k rows).
+    """
+    chunks = []
+    for i, chunk in enumerate(pd.read_csv(path, usecols=USECOLS, nrows=limit, chunksize=500_000)):
+        if neg_frac < 1.0:
+            fraud = chunk[chunk["isFraud"] == 1]
+            normal = chunk[chunk["isFraud"] == 0].sample(frac=neg_frac, random_state=seed + i)
+            chunk = pd.concat([fraud, normal]).sort_index()
+        chunks.append(chunk)
+    return pd.concat(chunks, ignore_index=True)
 
 
 def model_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -35,3 +46,12 @@ def model_features(df: pd.DataFrame) -> pd.DataFrame:
         "high_risk_type": df["type"].isin(HIGH_RISK_TYPES).astype("float64"),
     }, index=df.index)
     return out[MODEL_FEATURES]
+
+
+if __name__ == "__main__":
+    # Shrink the 470 MB file to a few MB you can share: python -m core.paysim big.csv data/paysim_sample.csv 0.02
+    import sys
+    src, dst, frac = sys.argv[1], sys.argv[2], float(sys.argv[3]) if len(sys.argv) > 3 else 0.02
+    out = load(src, neg_frac=frac)
+    out.to_csv(dst, index=False)
+    print(f"Wrote {len(out):,} rows ({int(out['isFraud'].sum()):,} fraud) to {dst}")

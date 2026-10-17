@@ -34,6 +34,9 @@ python -m core.train data/PS_20174392719_1491204439457_log.csv
 git add models/ && git commit -m "Add trained behaviour model"
 ```
 
+Big file / low RAM? Add `--neg-frac 0.05` to keep all fraud rows but only 5% of normal rows. To shrink the CSV for
+sharing: `python -m core.paysim big.csv data/paysim_sample.csv 0.02` (a few MB; `git add -f` it).
+
 Writes `models/behavior_xgb.json` and `models/behavior_metrics.json` (time-based split, PR-AUC / precision / recall).
 `BehaviorModel` loads it automatically; without it the pipeline uses rule-based scoring. The model uses the signals
 PaySim and a live event share (`amount_log`, `balance_pct`, `drains_account`, `high_risk_type`); reasons come from

@@ -54,3 +54,14 @@ def test_behavior_model_loads_booster_and_explains(tmp_path):
     score, impacts = model.predict(featurize(ev, BaselineStore().get("u")))
     assert 0 <= score <= 100 and {n for n, _ in impacts} == set(FEATURE_NAMES)
     assert score > 50   # a full-balance TRANSFER is the pattern the fake frame labels as fraud
+
+
+def test_sampled_load_keeps_all_fraud(tmp_path):
+    df = fake_paysim(6000)
+    f = tmp_path / "ps.csv"
+    df.to_csv(f, index=False)
+    out = paysim.load(str(f), neg_frac=0.1)
+    assert int(out["isFraud"].sum()) == int(df["isFraud"].sum())
+    assert len(out) < 0.2 * len(df) + df["isFraud"].sum()
+    clf, m = train.train(out, n_estimators=20, downsampled=True)
+    assert m["downsampled"] is True

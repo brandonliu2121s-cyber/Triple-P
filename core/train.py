@@ -1,6 +1,6 @@
 """Train the behaviour model on PaySim.
 
-    python -m core.train data/PS_20174392719_1491204439457_log.csv [--limit N]
+    python -m core.train data/PS_20174392719_1491204439457_log.csv [--neg-frac 0.05] [--limit N]
 
 Writes models/behavior_xgb.json (loaded automatically by BehaviorModel) and
 models/behavior_metrics.json. Split is by time (`step`), not random, so the test set is
@@ -24,7 +24,7 @@ MODEL_PATH = MODEL_DIR / "behavior_xgb.json"
 METRICS_PATH = MODEL_DIR / "behavior_metrics.json"
 
 
-def train(df, train_frac_steps: float = 0.8, seed: int = 42, n_estimators: int = 300) -> tuple[xgb.XGBClassifier, dict]:
+def train(df, train_frac_steps: float = 0.8, seed: int = 42, n_estimators: int = 300, downsampled: bool = False) -> tuple[xgb.XGBClassifier, dict]:
     X, y = paysim.model_features(df), df["isFraud"].astype(int)
     cut = df["step"].quantile(train_frac_steps)
     tr, te = (df["step"] <= cut).to_numpy(), (df["step"] > cut).to_numpy()
@@ -34,7 +34,8 @@ def train(df, train_frac_steps: float = 0.8, seed: int = 42, n_estimators: int =
     pos, neg = int(y[tr].sum()), int((1 - y[tr]).sum())
     clf = xgb.XGBClassifier(
         n_estimators=n_estimators, max_depth=5, learning_rate=0.1, subsample=0.8, colsample_bytree=0.9,
-        scale_pos_weight=min(neg / pos, 50.0),     # capped: full imbalance weight wrecks calibration
+        # downsampled data is already rebalanced; otherwise cap the weight (full imbalance wrecks calibration)
+        scale_pos_weight=1.0 if downsampled else min(neg / pos, 50.0),
         tree_method="hist", eval_metric="aucpr", random_state=seed, n_jobs=-1,
     )
     clf.fit(X[tr], y[tr], eval_set=[(X[te], y[te])], verbose=False)
@@ -43,6 +44,7 @@ def train(df, train_frac_steps: float = 0.8, seed: int = 42, n_estimators: int =
     metrics = {
         "rows": int(len(df)), "train_rows": int(tr.sum()), "test_rows": int(te.sum()),
         "train_fraud": pos, "test_fraud": int(y[te].sum()), "features": MODEL_FEATURES,
+        "downsampled": downsampled,   # if True, probabilities are inflated vs. real-world fraud rates; tune thresholds in the UI
         "pr_auc": float(average_precision_score(y[te], p)), "roc_auc": float(roc_auc_score(y[te], p)),
         "at_threshold": {},
     }
@@ -55,12 +57,14 @@ def train(df, train_frac_steps: float = 0.8, seed: int = 42, n_estimators: int =
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("csv")
+    ap.add_argument("--neg-frac", type=float, default=1.0,
+                    help="keep all fraud rows but only this share of non-fraud rows, e.g. 0.05 (much less RAM)")
     ap.add_argument("--limit", type=int, default=None, help="read only the first N rows (quick runs)")
     args = ap.parse_args()
 
-    df = paysim.load(args.csv, args.limit)
+    df = paysim.load(args.csv, args.limit, args.neg_frac)
     print(f"Loaded {len(df):,} rows, {int(df['isFraud'].sum()):,} fraud")
-    clf, metrics = train(df)
+    clf, metrics = train(df, downsampled=args.neg_frac < 1.0)
     MODEL_DIR.mkdir(exist_ok=True)
     clf.get_booster().save_model(str(MODEL_PATH))
     METRICS_PATH.write_text(json.dumps(metrics, indent=2))
