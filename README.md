@@ -42,6 +42,18 @@ Writes `models/behavior_xgb.json` and `models/behavior_metrics.json` (time-based
 PaySim and a live event share (`amount_log`, `balance_pct`, `drains_account`, `high_risk_type`); reasons come from
 exact TreeSHAP. After training, re-run `pytest` and the dashboard and re-tune tier thresholds if scams no longer reach hold.
 
+### First PaySim training result (full 6.36M rows, time split)
+
+Saved as `models/candidates/paysim_4feat_*` (NOT loaded by default; copy to `models/behavior_xgb.json` to try it).
+PR-AUC **0.104** (test base rate 0.0034, so ~30x random), ROC-AUC 0.949; at p>=0.5 precision 13% / recall 24%.
+
+- PaySim legit CASH_OUT/TRANSFER rows often empty the account too (1.19M rows; the "drains account" rule catches 98%
+  of fraud but is only 0.7% precise), so these four live-available features are inherently weak.
+- Fraud rate drifts over time (0.1% early, 1.5% in the last quarter), so time-split numbers are pessimistic.
+- PaySim's balance-consistency columns (`oldbalanceOrg - amount - newbalanceOrig`, and the destination equivalent) give
+  PR-AUC 1.0. That is a simulator artifact, not real-world signal, and not available at decision time: **don't use it**.
+- With this model loaded, the demo scam scenarios only reach "nudge", so fusion weights/thresholds need a deliberate rethink.
+
 ## Who owns what
 
 | Person | Files | First TODOs |
