@@ -5,6 +5,7 @@ so a scam in progress can't poison the user's "normal".
 """
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -18,7 +19,14 @@ FEATURE_NAMES = [
     "login_gap_z",        # unusual login cadence
     "payee_novelty",      # 1.0 if dest never seen for this user
     "is_senior",
+    "amount_log",         # log1p(amount); model feature
+    "drains_account",     # 1.0 if >= 99% of the balance is moved; model feature
+    "high_risk_type",     # 1.0 for TRANSFER / CASH_OUT (the only PaySim types that carry fraud)
 ]
+
+# Subset the PaySim-trained XGBoost uses: only signals PaySim has AND a live Event can supply.
+MODEL_FEATURES = ["amount_log", "balance_pct", "drains_account", "high_risk_type"]
+HIGH_RISK_TYPES = {"TRANSFER", "CASH_OUT"}
 
 
 @dataclass
@@ -70,4 +78,7 @@ def featurize(ev: Event, base: UserBaseline) -> list[float]:
         login_z,
         0.0 if ev.dest_id in base.payees else 1.0,
         float(ev.user_is_senior),
+        math.log1p(ev.amount),
+        float(ev.balance_pct >= 0.99),
+        float(ev.type in HIGH_RISK_TYPES),
     ]
