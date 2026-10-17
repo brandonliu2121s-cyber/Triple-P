@@ -52,7 +52,17 @@ PR-AUC **0.104** (test base rate 0.0034, so ~30x random), ROC-AUC 0.949; at p>=0
 - Fraud rate drifts over time (0.1% early, 1.5% in the last quarter), so time-split numbers are pessimistic.
 - PaySim's balance-consistency columns (`oldbalanceOrg - amount - newbalanceOrig`, and the destination equivalent) give
   PR-AUC 1.0. That is a simulator artifact, not real-world signal, and not available at decision time: **don't use it**.
-- With this model loaded, the demo scam scenarios only reach "nudge", so fusion weights/thresholds need a deliberate rethink.
+
+### Decision: XGBoost as one of three inputs
+
+`models/behavior_xgb.json` (copy of the candidate) is now loaded by default. Fusion weights were set once, by judgement,
+before evaluating: behaviour 0.20 / network 0.35 / context 0.45 (`core/scoring.py`). Measured result:
+
+- Normal traffic (3,000 events): 0 false holds, 66 nudges (2.2%); p95 scoring latency ~1.3 ms.
+- Impersonation, investment, tech-support: first transfer reaches **HOLD**. Later transfers in the same script often
+  drop to NUDGE (in a real flow the first hold would stop the rest).
+- **Romance: only NUDGE (known gap).** Its opening transfer has a new payee but no device change and a modest amount.
+  Say so in the pitch rather than tuning around it.
 
 ## Who owns what
 

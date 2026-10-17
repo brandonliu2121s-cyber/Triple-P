@@ -30,8 +30,11 @@ class Thresholds:
         return Tier.ALLOW
 
 
-# Fusion weights; the interaction bonus rewards several independent red flags at once.
-W_BEHAVIOR, W_NETWORK, W_CONTEXT = 0.45, 0.30, 0.25
+# Fusion weights, set by judgement BEFORE evaluating (not fitted to the demo scams).
+# The PaySim XGBoost behaviour score is the weakest signal (test PR-AUC ~0.10; see README), so it gets the
+# least weight; the mule-graph network score and the explicit scam-context rules carry more.
+# The interaction bonus rewards several independent red flags at once.
+W_BEHAVIOR, W_NETWORK, W_CONTEXT = 0.20, 0.35, 0.45
 INTERACTION_BONUS = 0.35
 
 
